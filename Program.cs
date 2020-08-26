@@ -25,18 +25,40 @@ namespace buildDocs
     }
 
     class GenerateForm {
-        public Dictionary<String, String> stringMap { get; set; }
-        public Dictionary<String, bool> checkboxMap { get; set; }
+        public Dictionary<string, string> stringMap { get; set; }
+        public Dictionary<string, bool> checkboxMap { get; set; }
         public GenerateForm() {
-            stringMap = new Dictionary<String, String>();
-            checkboxMap = new Dictionary<String, bool>();
+            stringMap = new Dictionary<string, string>();
+            checkboxMap = new Dictionary<string, bool>();
+        }
+    }
+
+    public class Pair {
+        public int Count {get; set;}
+        public string Value {get; set;}
+        public Pair(string value, int count) {
+            Count = count;
+            Value = value;
+        }
+        public Pair() {
+            Count = 0;
+            Value = "";
+        }
+    }
+
+    class GenerateFormNoDupe {
+        public Dictionary<string, Pair> stringMap { get; set; }
+        public Dictionary<string, bool> checkboxMap { get; set; }
+        public GenerateFormNoDupe() {
+            stringMap = new Dictionary<string, Pair>();
+            checkboxMap = new Dictionary<string, bool>();
         }
     }
 
     class Program
     {
         static bool isVerbose {get; set;}
-        public static void WriteJsonToFile(string fileName, GenerateForm genForm) {
+        public static void WriteJsonToFile<T>(string fileName, T genForm) {
             //string jsonString = JsonSerializer.Serialize<GenerateForm>(genForm);
             //File.WriteAllText(fileName, jsonString);
             using (FileStream fs = File.Create(fileName)) {
@@ -44,22 +66,58 @@ namespace buildDocs
                     var options = new JsonSerializerOptions {
                         WriteIndented = true
                     };
-                    await JsonSerializer.SerializeAsync<GenerateForm>(fs, genForm,options);
+                    await JsonSerializer.SerializeAsync<T>(fs, genForm, options);
                 };
                 fsAsync();
             }
         }
-        public static GenerateForm ReadJsonFromFile(string fileName) {
+
+        public static GenerateFormNoDupe BuildNoDuplicateJson(GenerateForm genForm) {
+            GenerateFormNoDupe noDupForm = new GenerateFormNoDupe();
+            foreach(KeyValuePair<string, string> entry in genForm.stringMap) {
+                string key = entry.Key.Split('_')[0];
+                Pair valuePair;
+                if (!noDupForm.stringMap.TryGetValue(key, out valuePair)) {
+                    noDupForm.stringMap[key] = new Pair(entry.Value, 0);
+                } else {
+                    
+                    noDupForm.stringMap[key].Count++;
+                }
+            }
+            noDupForm.checkboxMap = genForm.checkboxMap;
+            return noDupForm;
+        }
+
+        public static GenerateForm BuilDuplicateJson(GenerateFormNoDupe noDupForm) {
+            if(noDupForm == null || noDupForm.stringMap == null ||
+               noDupForm.checkboxMap == null) {
+                return null;
+            }
+            GenerateForm genForm = new GenerateForm();
+            foreach(KeyValuePair<string, Pair> entry in noDupForm.stringMap) {
+                if(entry.Value.Count == 0) {
+                    genForm.stringMap[entry.Key] = entry.Value.Value;
+                } else {
+                    for(int i = 0; i <= entry.Value.Count; i++) {
+                        genForm.stringMap[entry.Key+"_"+i] = entry.Value.Value;
+                    }
+                }
+            }
+            genForm.checkboxMap = noDupForm.checkboxMap;
+            return genForm;
+        }
+
+        public static T ReadJsonFromFile<T>(string fileName) {
             try {
                 string jsonString = File.ReadAllText(fileName);
-                return JsonSerializer.Deserialize<GenerateForm>(jsonString);
+                return JsonSerializer.Deserialize<T>(jsonString);
             } catch(FileNotFoundException e) { 
                 Console.WriteLine(e.Message);
             }
             catch(Exception e) {
                 Console.WriteLine("Invalid json: " + e.Message);
             }
-            return null;
+            return default(T);
         }
         public delegate void CheckBoxAction(GenerateForm genForm, string key, 
             DefaultCheckBoxFormFieldState checkboxChecked);
@@ -163,7 +221,7 @@ namespace buildDocs
                 //Console.WriteLine(template);
                 //Console.WriteLine(json);
                 GenerateJson(template, genForm);
-                WriteJsonToFile(json, genForm);
+                WriteJsonToFile(json, BuildNoDuplicateJson(genForm));
             });
             var fillCommand = new Command("fill");
             fillCommand.Add(templateOption);
@@ -171,8 +229,12 @@ namespace buildDocs
             fillCommand.Handler = CommandHandler.Create<string, string>((template, json) =>{
                 //Console.WriteLine(template);
                 //Console.WriteLine(json);
-                GenerateForm genForm = ReadJsonFromFile(json);
-                if(String.IsNullOrEmpty(json) || genForm == null || 
+                if(String.IsNullOrEmpty(json)) {
+                    Console.WriteLine("Invalid input json file name.");
+                    return;
+                }
+                GenerateForm genForm = BuilDuplicateJson(ReadJsonFromFile<GenerateFormNoDupe>(json));
+                if(genForm == null ||
                     (genForm.stringMap.Count == 0 && genForm.checkboxMap.Count == 0)) {
                     Console.WriteLine("exiting b\\c of invalid json.");
                     return;
