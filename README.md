@@ -1,5 +1,8 @@
 # Form Field Generation
 
+## Build Status
+[![Build Status](https://travis-ci.com/PyramidRemedial/FormGen.svg?branch=master)](https://travis-ci.com/PyramidRemedial/FormGen)
+
 ## Build Instructions
 - `dotnet build`
 
