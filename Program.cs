@@ -58,6 +58,12 @@ namespace FormGen
     class Program
     {
         static bool isVerbose {get; set;}
+        static void PrintVerbose(string message) {
+            if(isVerbose) {
+                Console.WriteLine(message);
+            }
+
+        }
         public static void WriteJsonToFile<T>(string fileName, T genForm) {
             //string jsonString = JsonSerializer.Serialize<GenerateForm>(genForm);
             //File.WriteAllText(fileName, jsonString);
@@ -155,7 +161,6 @@ namespace FormGen
                 IDictionary<String, BookmarkStart> bookmarkMap = new Dictionary<String, BookmarkStart>();
                 foreach (BookmarkStart bookmarkStart in wordprocessingDocument.MainDocumentPart.RootElement.Descendants<BookmarkStart>())
                 {
-                    //Console.WriteLine(bookmarkStart.Name);
                     bookmarkMap[bookmarkStart.Name] = bookmarkStart;
                 }
 
@@ -174,18 +179,15 @@ namespace FormGen
                                 //Note: docs say Checked should appear however type is DefaultCheckBoxFormFieldState
                                 //Checked checkboxChecked =  checkbox?.GetFirstChild<Checked>();
                                 DefaultCheckBoxFormFieldState checkboxChecked =  checkbox?.GetFirstChild<DefaultCheckBoxFormFieldState>();
-                                //Console.WriteLine(checkboxChecked?.GetType());
                                 if (checkboxChecked != null) {
-                                    Console.WriteLine(""+(bool)checkboxChecked.Val);
-                                    //genForm.checkboxMap[bookmarkStart.Name] = (bool) checkboxChecked.Val;
+                                    PrintVerbose(""+(bool)checkboxChecked.Val);
                                     checkBoxAction(genForm, bookmarkStart.Name, checkboxChecked);
                                 } 
                             } else if(FormTypes.FormText.Is(fcode.Text)) {
                                 while(bookmarkFieldCode.NextSibling<Run>() != null) {
                                     Text bookmarkText =  bookmarkFieldCode.GetFirstChild<Text>();
                                     if (bookmarkText != null) {
-                                        Console.WriteLine(bookmarkText.Text);
-                                        //genForm.stringMap[bookmarkStart.Name] = bookmarkText.Text;
+                                        PrintVerbose(bookmarkText.Text);
                                         textFieldAction(genForm, bookmarkStart.Name, bookmarkText);
                                     }
                                     bookmarkFieldCode = bookmarkFieldCode.NextSibling<Run>();
@@ -216,19 +218,19 @@ namespace FormGen
             genCommand.AddAlias("gen");
             genCommand.Add(templateOption);
             genCommand.Add(jsonOutputOption);
-            genCommand.Handler = CommandHandler.Create<string, string >((template, json) =>{
+            genCommand.Add(verboseOption);
+            genCommand.Handler = CommandHandler.Create<string, string, bool >((template, json, verbose) =>{
+                isVerbose = verbose;
                 GenerateForm genForm = new GenerateForm();
-                //Console.WriteLine(template);
-                //Console.WriteLine(json);
                 GenerateJson(template, genForm);
                 WriteJsonToFile(json, BuildNoDuplicateJson(genForm));
             });
             var fillCommand = new Command("fill");
             fillCommand.Add(templateOption);
             fillCommand.Add(jsonInputOption);
-            fillCommand.Handler = CommandHandler.Create<string, string>((template, json) =>{
-                //Console.WriteLine(template);
-                //Console.WriteLine(json);
+            fillCommand.Add(verboseOption);
+            fillCommand.Handler = CommandHandler.Create<string, string, bool>((template, json, verbose) =>{
+                isVerbose = verbose;
                 if(String.IsNullOrEmpty(json)) {
                     Console.WriteLine("Invalid input json file name.");
                     return;
