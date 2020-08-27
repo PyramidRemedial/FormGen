@@ -12,7 +12,7 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using System.Text.RegularExpressions;
 
 
-namespace buildDocs
+namespace FormGen
 {
     class FormTypes {
         private FormTypes(string value) { Value = value; }
